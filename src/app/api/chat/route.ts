@@ -14,6 +14,7 @@ export async function POST(req: Request) {
   const webSearch: boolean | undefined = body?.webSearch;
   const uploadedFile: { name: string; type?: string; data: string } | undefined = body?.file;
   const selectedColumn: number | undefined = body?.selectedColumn; // 1-based index from UI
+  const weeklySelections: { [week: number]: string[] } | undefined = body?.weeklySelections;
 
   const SYSTEM_PROMPT = `I will be sending you topics with their subtopics. Starting from H1 (used only for the main topic header), followed by H2 and lower levels for subtopics, generate a well-structured lecture-style note aligned with Nigerian teaching and note-writing standards.
 
@@ -50,7 +51,14 @@ Output only the final well-structured note with proper headings and sections.`;
   // Derive a simple query: if file provided, use topics from file; otherwise, from last user message
   let userQuery = '';
   let fileInstruction = '';
-  if (uploadedFile?.data) {
+  if (weeklySelections) {
+    // Custom mode
+    const lines = Object.entries(weeklySelections)
+      .map(([week, topics]) => `- Week ${week}: ${topics.join(', ')}`)
+      .join('\n');
+    fileInstruction = `\n\nThe user is in custom mode. Generate notes for the entire term using the following weekly topics:\n${lines}\n\nReminder: Start each week with an H1 exactly as: "Week {N} - {topic}" and then proceed with the required structure.`;
+    userQuery = Object.values(weeklySelections).flat().join(' ');
+  } else if (uploadedFile?.data) {
     try {
       const buf = Buffer.from(uploadedFile.data, 'base64');
       const wb = XLSX.read(buf, { type: 'buffer' });

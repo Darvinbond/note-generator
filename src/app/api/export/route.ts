@@ -62,7 +62,7 @@ function wrapHtmlDocument(innerHtml: string, inlineKatexCss: string): string {
   <style>
     ${inlineKatexCss}
     @page { 
-      margin: 1in;
+      margin: 0.5in;
       @top-center { content: element(header); }
       @bottom-center { content: element(footer); }
     }
@@ -73,11 +73,27 @@ function wrapHtmlDocument(innerHtml: string, inlineKatexCss: string): string {
       color: #111;
       -webkit-font-smoothing: antialiased;
       -moz-osx-font-smoothing: grayscale;
+      position: relative;
+    }
+
+    body::after {
+      content: "";
+      background-image: url(http://localhost:3000/bg.png);
+      background-repeat: no-repeat;
+      background-position: center;
+      background-size: 400px;
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      z-index: -1;
+      opacity: 0.1;
     }
     
     code, pre, kbd, samp {
       font-family: 'Geist Mono', 'Courier New', Courier, monospace;
-      font-size: 0.75em;
+      font-size: 0.2em;
     }
     
     h1 { 
@@ -120,7 +136,7 @@ function wrapHtmlDocument(innerHtml: string, inlineKatexCss: string): string {
       background: #f0f0f0;
       padding: 0.2em 0.4em;
       border-radius: 3px;
-      font-size: 0.9em;
+      font-size: 0.2em;
     }
   </style>
 </head>
@@ -204,7 +220,7 @@ export async function POST(req: NextRequest) {
       const pdf = await page.pdf({
         format: 'A4',
         printBackground: true,
-        margin: { top: '1in', right: '1in', bottom: '1in', left: '1in' },
+        margin: { top: '1in', right: '0.5in', bottom: '1in', left: '0.5in' },
         preferCSSPageSize: true,
         displayHeaderFooter: false,
       });
