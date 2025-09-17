@@ -6,6 +6,7 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
@@ -50,9 +51,9 @@ export function DialogDrawer({ trigger, title, description, children, footer, di
             <DialogDescription>{description}</DialogDescription>
           </DialogHeader>
           {children}
-          <DrawerFooter className="pt-2">
+          <DialogFooter className="pt-2">
             {footer}
-          </DrawerFooter>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     )

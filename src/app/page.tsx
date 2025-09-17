@@ -336,30 +336,30 @@ const ChatBotDemo = () => {
                         onClick={async () => {
                           try {
                             setExportError(null);
-                            setExporting('docx');
+                            setExporting('pdf');
                             const content = getLatestAssistantText();
                             const res = await fetch("/api/export", {
                               method: "POST",
                               headers: { "content-type": "application/json" },
-                              body: JSON.stringify({ format: "docx", content }),
+                              body: JSON.stringify({ format: "html", content }),
                             });
                             if (!res.ok) throw new Error(`Export failed (${res.status})`);
-                            const blob = await res.blob();
-                            const url = URL.createObjectURL(blob);
-                            const a = document.createElement("a");
-                            a.href = url;
-                            a.download = "notes.docx";
-                            a.click();
-                            URL.revokeObjectURL(url);
+                            const html = await res.text();
+                            const printWindow = window.open('', '_blank');
+                            if (printWindow) {
+                              printWindow.document.write(html);
+                              printWindow.document.close();
+                              printWindow.onafterprint = () => printWindow.close();
+                            }
                           } catch (e: any) {
-                            setExportError(e?.message || 'Failed to export DOCX');
+                            setExportError(e?.message || 'Failed to export PDF');
                           } finally {
                             setExporting(null);
                           }
                         }}
                       >
                         <DownloadIcon size={18} />
-                        <span className="ml-1">{exporting === 'docx' ? 'Preparing DOCX…' : 'Save as DOCX'}</span>
+                        <span className="ml-1">{exporting === 'pdf' ? 'Preparing PDF…' : 'Save as PDF'}</span>
                       </Button>
                       <Button
                         variant="ghost"
@@ -372,16 +372,16 @@ const ChatBotDemo = () => {
                             const res = await fetch("/api/export", {
                               method: "POST",
                               headers: { "content-type": "application/json" },
-                              body: JSON.stringify({ format: "pdf", content }),
+                              body: JSON.stringify({ format: "html", content }),
                             });
                             if (!res.ok) throw new Error(`Export failed (${res.status})`);
-                            const blob = await res.blob();
-                            const url = URL.createObjectURL(blob);
-                            const a = document.createElement("a");
-                            a.href = url;
-                            a.download = "notes.pdf";
-                            a.click();
-                            URL.revokeObjectURL(url);
+                            const html = await res.text();
+                            const printWindow = window.open('', '_blank');
+                            if (printWindow) {
+                              printWindow.document.write(html);
+                              printWindow.document.close();
+                              printWindow.onafterprint = () => printWindow.close();
+                            }
                           } catch (e: any) {
                             setExportError(e?.message || 'Failed to export PDF');
                           } finally {

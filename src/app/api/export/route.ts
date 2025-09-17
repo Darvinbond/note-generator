@@ -9,7 +9,6 @@ import remarkRehype from 'remark-rehype';
 import rehypeKatex from 'rehype-katex';
 import rehypeStringify from 'rehype-stringify';
 import htmlToDocx from 'html-to-docx';
-import puppeteer from 'puppeteer';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
@@ -52,7 +51,7 @@ function addPageBreaksBeforeWeeks(html: string): string {
   });
 }
 
-function wrapHtmlDocument(innerHtml: string, inlineKatexCss: string): string {
+function wrapHtmlDocument(innerHtml: string, inlineKatexCss: string, baseUrl: string): string {
   return `<!doctype html>
 <html>
 <head>
@@ -74,11 +73,12 @@ function wrapHtmlDocument(innerHtml: string, inlineKatexCss: string): string {
       -webkit-font-smoothing: antialiased;
       -moz-osx-font-smoothing: grayscale;
       position: relative;
+      -webkit-print-color-adjust: exact;
     }
 
     body::after {
       content: "";
-      background-image: url(http://localhost:3000/bg.png);
+      background-image: url(${baseUrl}/bg.png);
       background-repeat: no-repeat;
       background-position: center;
       background-size: 400px;
@@ -142,14 +142,21 @@ function wrapHtmlDocument(innerHtml: string, inlineKatexCss: string): string {
 </head>
 <body>
 ${innerHtml}
+<script>
+  const img = new Image();
+  img.src = "${baseUrl}/bg.png";
+  img.onload = () => {
+    window.print();
+  };
+</script>
 </body>
 </html>`;
 }
 
 export async function POST(req: NextRequest) {
   try {
-    const { format, content } = (await req.json()) as { format: 'docx' | 'pdf'; content: string };
-    if (!content || (format !== 'docx' && format !== 'pdf')) {
+    const { format, content } = (await req.json()) as { format: 'docx' | 'html'; content: string };
+    if (!content || (format !== 'docx' && format !== 'html')) {
       return new Response(JSON.stringify({ error: 'Invalid payload' }), {
         status: 400,
         headers: { 'content-type': 'application/json' },
@@ -160,7 +167,10 @@ export async function POST(req: NextRequest) {
     const htmlBody = await markdownToHtml(content);
     const withBreaks = addPageBreaksBeforeWeeks(htmlBody);
     const katexCss = await getKatexCss();
-    const fullHtml = wrapHtmlDocument(withBreaks, katexCss);
+    const protocol = req.headers.get('x-forwarded-proto') || 'http';
+    const host = req.headers.get('host');
+    const baseUrl = `${protocol}://${host}`;
+    const fullHtml = wrapHtmlDocument(withBreaks, katexCss, baseUrl);
 
     if (format === 'docx') {
       const buffer = await htmlToDocx(fullHtml);
@@ -173,68 +183,13 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // format === 'pdf'
-    const browser = await puppeteer.launch({
-      headless: true,
-      args: [
-        '--no-sandbox',
-        '--disable-setuid-sandbox',
-        '--font-render-hinting=none',
-        '--enable-font-antialiasing',
-        '--enable-gpu-rasterization',
-        '--disable-dev-shm-usage',
-        '--disable-gpu',
-      ],
+    // format === 'html'
+    return new Response(fullHtml, {
+      status: 200,
+      headers: {
+        'content-type': 'text/html',
+      },
     });
-    try {
-      const page = await browser.newPage();
-      
-      // Wait for fonts to load
-      await page.evaluateHandle('document.fonts.ready');
-      
-      // Set the content and wait for fonts to be loaded
-      await page.setContent(fullHtml, { 
-        waitUntil: 'networkidle0',
-        timeout: 60000 // Increase timeout to ensure fonts load
-      });
-      
-      // Additional wait to ensure all fonts are loaded
-      await page.evaluate(async () => {
-        const style = document.createElement('style');
-        style.textContent = `
-          @import url('https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono&display=swap');
-          body { opacity: 0; transition: opacity 0.5s; }
-        `;
-        document.head.appendChild(style);
-        
-        // Wait for fonts to load
-        await document.fonts.ready;
-        
-        // Make content visible after fonts are loaded
-        document.body.style.opacity = '1';
-      });
-      
-      // Wait a bit more to ensure rendering is complete
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      const pdf = await page.pdf({
-        format: 'A4',
-        printBackground: true,
-        margin: { top: '1in', right: '0.5in', bottom: '1in', left: '0.5in' },
-        preferCSSPageSize: true,
-        displayHeaderFooter: false,
-      });
-      
-      return new Response(pdf, {
-        status: 200,
-        headers: {
-          'content-type': 'application/pdf',
-          'content-disposition': 'attachment; filename=notes.pdf',
-        },
-      });
-    } finally {
-      await browser.close();
-    }
   } catch (err) {
     console.error('[export] failed', err);
     return new Response(JSON.stringify({ error: 'Failed to export document.' }), {
