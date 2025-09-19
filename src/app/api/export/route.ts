@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server';
 import { createRequire } from 'node:module';
 import { readFile } from 'node:fs/promises';
+import path from 'node:path';
 import { unified } from 'unified';
 import remarkParse from 'remark-parse';
 import remarkGfm from 'remark-gfm';
@@ -51,7 +52,7 @@ function addPageBreaksBeforeWeeks(html: string): string {
   });
 }
 
-function wrapHtmlDocument(innerHtml: string, inlineKatexCss: string, baseUrl: string): string {
+function wrapHtmlDocument(innerHtml: string, inlineKatexCss: string, watermarkBase64: string): string {
   return `<!doctype html>
 <html>
 <head>
@@ -78,10 +79,10 @@ function wrapHtmlDocument(innerHtml: string, inlineKatexCss: string, baseUrl: st
 
     body::after {
       content: "";
-      background-image: url(${baseUrl}/bg.png);
+      background-image: url(data:image/png;base64,${watermarkBase64});
       background-repeat: no-repeat;
       background-position: center;
-      background-size: 400px;
+      background-size: 600px;
       position: fixed;
       top: 0;
       left: 0;
@@ -143,9 +144,7 @@ function wrapHtmlDocument(innerHtml: string, inlineKatexCss: string, baseUrl: st
 <body>
 ${innerHtml}
 <script>
-  const img = new Image();
-  img.src = "${baseUrl}/bg.png";
-  img.onload = () => {
+  window.onload = () => {
     window.print();
   };
 </script>
@@ -167,10 +166,10 @@ export async function POST(req: NextRequest) {
     const htmlBody = await markdownToHtml(content);
     const withBreaks = addPageBreaksBeforeWeeks(htmlBody);
     const katexCss = await getKatexCss();
-    const protocol = req.headers.get('x-forwarded-proto') || 'http';
-    const host = req.headers.get('host');
-    const baseUrl = `${protocol}://${host}`;
-    const fullHtml = wrapHtmlDocument(withBreaks, katexCss, baseUrl);
+    const watermarkPath = path.join(process.cwd(), 'public', 'bg.png');
+    const watermarkBuffer = await readFile(watermarkPath);
+    const watermarkBase64 = watermarkBuffer.toString('base64');
+    const fullHtml = wrapHtmlDocument(withBreaks, katexCss, watermarkBase64);
 
     if (format === 'docx') {
       const buffer = await htmlToDocx(fullHtml);

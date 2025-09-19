@@ -39,6 +39,15 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "@/components/ui/sheet";
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectLabel,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 const models = [
   { name: "GPT 4o", value: "openai/gpt-4o" },
@@ -61,6 +70,7 @@ const ChatBotDemo = () => {
   const [weeklySelections, setWeeklySelections] = useState<{ [week: number]: string[] }>({});
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isSheetOpen, setIsSheetOpen] = useState(false);
+  const [classLevel, setClassLevel] = useState<string | null>(null);
 
   const { messages, sendMessage, status } = useChat({
     transport: new DefaultChatTransport({ api: "/api/chat" }),
@@ -155,7 +165,7 @@ const ChatBotDemo = () => {
     setIsDownloadMenuOpen(false);
     await sendMessage(
       { text: "Generate notes from uploaded file" },
-      { body: { model, selectedColumn, file: { name: selectedFile.name, type: selectedFile.type, data: base64 } } }
+      { body: { model, selectedColumn, classLevel, file: { name: selectedFile.name, type: selectedFile.type, data: base64 } } }
     );
   };
 
@@ -205,6 +215,48 @@ const ChatBotDemo = () => {
 
       {selectedFile && (
         <>
+          <div className="mb-6">
+            <label className="text-xs font-medium text-gray-500 uppercase tracking-wider">Class Level</label>
+            <Select onValueChange={setClassLevel} value={classLevel ?? undefined}>
+              <SelectTrigger className="w-full mt-2">
+                <SelectValue placeholder="Select a class level" />
+              </SelectTrigger>
+              <SelectContent className="max-h-96">
+                <SelectGroup>
+                  <SelectLabel>Kindergarten</SelectLabel>
+                  <SelectItem value="Kindergarten 1">Kindergarten 1</SelectItem>
+                  <SelectItem value="Kindergarten 2">Kindergarten 2</SelectItem>
+                </SelectGroup>
+                <SelectGroup>
+                  <SelectLabel>Nursery</SelectLabel>
+                  <SelectItem value="Nursery 1">Nursery 1</SelectItem>
+                  <SelectItem value="Nursery 2">Nursery 2</SelectItem>
+                </SelectGroup>
+                <SelectGroup>
+                  <SelectLabel>Primary</SelectLabel>
+                  <SelectItem value="Primary 1">Primary 1</SelectItem>
+                  <SelectItem value="Primary 2">Primary 2</SelectItem>
+                  <SelectItem value="Primary 3">Primary 3</SelectItem>
+                  <SelectItem value="Primary 4">Primary 4</SelectItem>
+                  <SelectItem value="Primary 5">Primary 5</SelectItem>
+                  <SelectItem value="Primary 6">Primary 6</SelectItem>
+                </SelectGroup>
+                <SelectGroup>
+                  <SelectLabel>Junior Secondary</SelectLabel>
+                  <SelectItem value="JSS 1">JSS 1</SelectItem>
+                  <SelectItem value="JSS 2">JSS 2</SelectItem>
+                  <SelectItem value="JSS 3">JSS 3</SelectItem>
+                </SelectGroup>
+                <SelectGroup>
+                  <SelectLabel>Senior Secondary</SelectLabel>
+                  <SelectItem value="SSS 1">SSS 1</SelectItem>
+                  <SelectItem value="SSS 2">SSS 2</SelectItem>
+                  <SelectItem value="SSS 3">SSS 3</SelectItem>
+                </SelectGroup>
+              </SelectContent>
+            </Select>
+          </div>
+
           <div className="mb-6">
             <label className="text-xs font-medium text-gray-500 uppercase tracking-wider">Generation Mode</label>
             <div className="mt-2 grid grid-cols-2 gap-2 rounded-lg bg-gray-200 p-1">
@@ -260,7 +312,7 @@ const ChatBotDemo = () => {
               <Button
                 type="button"
                 className="w-full"
-                disabled={status === "streaming" || !selectedColumn}
+                disabled={status === "streaming" || !selectedColumn || !classLevel}
                 onClick={onGenerateClick}
               >
                 {status === "streaming" ? "Generating…" : "Generate Notes"}
@@ -273,7 +325,7 @@ const ChatBotDemo = () => {
   );
 
   return (
-    <div className={`w-full mx-auto px-[16px] md:px-6 relative size-full h-screen transition-all duration-300 ${hasFile ? 'md:!pr-[33%]' : 'max-w-5xl'}`}>
+    <div className={`w-full mx-auto px-[16px] md:px-6 relative size-full h-[100dvh] transition-all duration-300 ${hasFile ? 'md:!pr-[33%]' : 'max-w-5xl'}`}>
       <TailwindClassSafelist />
       <div className="w-full flex flex-col h-full relative">
         <Conversation className="h-full">
@@ -322,84 +374,81 @@ const ChatBotDemo = () => {
                     })}
                   </MessageContent>
                 </Message>
+                {message.role === 'assistant' && (
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="ghost"
+                      disabled={exporting !== null}
+                      onClick={async () => {
+                        try {
+                          setExportError(null);
+                          setExporting('docx');
+                          const content = message.parts
+                            .filter((p: any) => p.type === "text")
+                            .map((p: any) => p.text)
+                            .join("");
+                          const res = await fetch("/api/export", {
+                            method: "POST",
+                            headers: { "content-type": "application/json" },
+                            body: JSON.stringify({ format: "docx", content }),
+                          });
+                          if (!res.ok) throw new Error(`Export failed (${res.status})`);
+                          const blob = await res.blob();
+                          const url = URL.createObjectURL(blob);
+                          const a = document.createElement("a");
+                          a.href = url;
+                          a.download = "notes.docx";
+                          a.click();
+                          URL.revokeObjectURL(url);
+                        } catch (e: any) {
+                          setExportError(e?.message || 'Failed to export DOCX');
+                        } finally {
+                          setExporting(null);
+                        }
+                      }}
+                    >
+                      <DownloadIcon size={18} />
+                      <span className="ml-1">{exporting === 'docx' ? 'Preparing DOCX…' : 'Save as DOCX'}</span>
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      disabled={exporting !== null}
+                      onClick={async () => {
+                        try {
+                          setExportError(null);
+                          setExporting('pdf');
+                          const content = message.parts
+                            .filter((p: any) => p.type === "text")
+                            .map((p: any) => p.text)
+                            .join("");
+                          const res = await fetch("/api/export", {
+                            method: "POST",
+                            headers: { "content-type": "application/json" },
+                            body: JSON.stringify({ format: "html", content }),
+                          });
+                          if (!res.ok) throw new Error(`Export failed (${res.status})`);
+                          const html = await res.text();
+                          const printWindow = window.open('', '_blank');
+                          if (printWindow) {
+                            printWindow.document.write(html);
+                            printWindow.document.close();
+                            printWindow.onafterprint = () => printWindow.close();
+                          }
+                        } catch (e: any) {
+                          setExportError(e?.message || 'Failed to export PDF');
+                        } finally {
+                          setExporting(null);
+                        }
+                      }}
+                    >
+                      <DownloadIcon size={18} />
+                      <span className="ml-1">{exporting === 'pdf' ? 'Preparing PDF…' : 'Save as PDF'}</span>
+                    </Button>
+                  </div>
+                )}
               </div>
             ))}
             {status === "submitted" && <Loader />}
-            {showDownloadMenu && (
-              <Message from="assistant">
-                <MessageContent>
-                  <div className="flex flex-col items-end gap-2">
-                    <div className="flex items-center gap-2">
-                      <Button
-                        variant="ghost"
-                        disabled={exporting !== null}
-                        onClick={async () => {
-                          try {
-                            setExportError(null);
-                            setExporting('pdf');
-                            const content = getLatestAssistantText();
-                            const res = await fetch("/api/export", {
-                              method: "POST",
-                              headers: { "content-type": "application/json" },
-                              body: JSON.stringify({ format: "html", content }),
-                            });
-                            if (!res.ok) throw new Error(`Export failed (${res.status})`);
-                            const html = await res.text();
-                            const printWindow = window.open('', '_blank');
-                            if (printWindow) {
-                              printWindow.document.write(html);
-                              printWindow.document.close();
-                              printWindow.onafterprint = () => printWindow.close();
-                            }
-                          } catch (e: any) {
-                            setExportError(e?.message || 'Failed to export PDF');
-                          } finally {
-                            setExporting(null);
-                          }
-                        }}
-                      >
-                        <DownloadIcon size={18} />
-                        <span className="ml-1">{exporting === 'pdf' ? 'Preparing PDF…' : 'Save as PDF'}</span>
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        disabled={exporting !== null}
-                        onClick={async () => {
-                          try {
-                            setExportError(null);
-                            setExporting('pdf');
-                            const content = getLatestAssistantText();
-                            const res = await fetch("/api/export", {
-                              method: "POST",
-                              headers: { "content-type": "application/json" },
-                              body: JSON.stringify({ format: "html", content }),
-                            });
-                            if (!res.ok) throw new Error(`Export failed (${res.status})`);
-                            const html = await res.text();
-                            const printWindow = window.open('', '_blank');
-                            if (printWindow) {
-                              printWindow.document.write(html);
-                              printWindow.document.close();
-                              printWindow.onafterprint = () => printWindow.close();
-                            }
-                          } catch (e: any) {
-                            setExportError(e?.message || 'Failed to export PDF');
-                          } finally {
-                            setExporting(null);
-                          }
-                        }}
-                      >
-                        <DownloadIcon size={18} />
-                        <span className="ml-1">{exporting === 'pdf' ? 'Preparing PDF…' : 'Save as PDF'}</span>
-                      </Button>
-                    </div>
-                    {exportError && (
-                      <div className="mt-2 text-xs text-red-600">{exportError}</div>
-                    )}
-                  </div>
-                </MessageContent>
-              </Message>
-            )}
           </ConversationContent>
           <ConversationScrollButton aria-label="Scroll to bottom" />
         </Conversation>
@@ -479,15 +528,15 @@ const ChatBotDemo = () => {
                 <ChevronRight className="ml-2 h-4 w-4" />
               </Button>
             </div>
-            <Button
-              disabled={status === "streaming" || Object.keys(weeklySelections).length === 0}
+                        <Button
+                          disabled={status === "streaming" || Object.keys(weeklySelections).length === 0 || !classLevel}
                           onClick={() => {
                             setIsModalOpen(false);
                             setIsSheetOpen(false);
                             setRunHasFile(true);
                             void sendMessage(
                               { text: 'Generate notes for the term' },
-                              { body: { model, weeklySelections } }
+                              { body: { model, weeklySelections, classLevel } }
                             );
                           }}
                         >

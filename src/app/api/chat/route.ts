@@ -15,6 +15,7 @@ export async function POST(req: Request) {
   const uploadedFile: { name: string; type?: string; data: string } | undefined = body?.file;
   const selectedColumn: number | undefined = body?.selectedColumn; // 1-based index from UI
   const weeklySelections: { [week: number]: string[] } | undefined = body?.weeklySelections;
+  const classLevel: string | undefined = body?.classLevel;
 
   const SYSTEM_PROMPT = `I will be sending you topics with their subtopics. Starting from H1 (used only for the main topic header), followed by H2 and lower levels for subtopics, generate a well-structured lecture-style note aligned with Nigerian teaching and note-writing standards.
 
@@ -45,18 +46,21 @@ Knowledge base and reference:
 - Always check provided reference documents before writing. The user will place .docx reference files in the public folder at /public/knowledge/ (e.g., "5 - SCHEME 1ST TERM SSS 1- 3 AUG 2024.docx"). Use them to understand structure and curriculum mapping.
 - When the user requests like: "Civic education SS1 week1", consult the scheme document columns (numbers, SS1, SS2, SS3) to find the appropriate content and structure your output accordingly.
 
-Output only the final well-structured note with proper headings and sections.`;
+VERY IMPORTANT: Do not add any conversational filler or commentary. Your response should be only the generated note, starting directly with the first H1 header.`;
 
   // --- Knowledge base loading (.docx placed under public/knowledge) ---
   // Derive a simple query: if file provided, use topics from file; otherwise, from last user message
   let userQuery = '';
   let fileInstruction = '';
+  if (classLevel) {
+    fileInstruction += `\n\nThe user has selected the following class level: ${classLevel}. Please tailor the content to be appropriate for this level of understanding.`;
+  }
   if (weeklySelections) {
     // Custom mode
     const lines = Object.entries(weeklySelections)
       .map(([week, topics]) => `- Week ${week}: ${topics.join(', ')}`)
       .join('\n');
-    fileInstruction = `\n\nThe user is in custom mode. Generate notes for the entire term using the following weekly topics:\n${lines}\n\nReminder: Start each week with an H1 exactly as: "Week {N} - {topic}" and then proceed with the required structure.`;
+    fileInstruction += `\n\nThe user is in custom mode. Generate notes for the entire term using the following weekly topics:\n${lines}\n\nReminder: Start each week with an H1 exactly as: "Week {N} - {topic}" and then proceed with the required structure.`;
     userQuery = Object.values(weeklySelections).flat().join(' ');
   } else if (uploadedFile?.data) {
     try {
@@ -135,7 +139,7 @@ Output only the final well-structured note with proper headings and sections.`;
 
   const result = await streamText({
     model: google(modelId),
-    messages: convertToModelMessages(messages),
+    messages: convertToModelMessages(messages.slice(-1)),
     system: systemWithKB,
   });
 
