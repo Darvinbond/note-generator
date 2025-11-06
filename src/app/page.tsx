@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport } from "ai";
-import { DownloadIcon, Upload, Menu, Settings2, Sparkles, ChevronLeft, ChevronRight } from "lucide-react";
+import { DownloadIcon, Upload, Menu, Settings2, Sparkles, ChevronLeft, ChevronRight, FileSpreadsheet, FileText } from "lucide-react";
 import * as XLSX from "xlsx";
 
 import {
@@ -48,6 +48,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import UploadPdf from "@/components/UploadPdf";
+import TablePreview from "@/components/TablePreview";
 
 const models = [
   { name: "GPT 4o", value: "openai/gpt-4o" },
@@ -71,6 +73,8 @@ const ChatBotDemo = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isSheetOpen, setIsSheetOpen] = useState(false);
   const [classLevel, setClassLevel] = useState<string | null>(null);
+  const [extractedTables, setExtractedTables] = useState<any[]>([]);
+  const [isPdfModalOpen, setIsPdfModalOpen] = useState(false);
 
   const { messages, sendMessage, status } = useChat({
     transport: new DefaultChatTransport({ api: "/api/chat" }),
@@ -455,15 +459,24 @@ const ChatBotDemo = () => {
 
         {/* Floating upload button when no file is selected */}
         {!selectedFile && (
-          <div className="fixed bottom-6 right-6 z-30">
+          <div className="fixed bottom-6 right-6 z-30 flex flex-col gap-2">
             <Button 
               variant="outline" 
               size="lg" 
               className="rounded-full shadow-lg h-14 w-14 p-0"
               onClick={() => fileInputRef.current?.click()}
             >
-              <Upload className="h-5 w-5" />
-              <span className="sr-only">Upload file</span>
+              <FileSpreadsheet className="h-5 w-5" />
+              <span className="sr-only">Upload Spreadsheet</span>
+            </Button>
+            <Button 
+              variant="outline" 
+              size="lg" 
+              className="rounded-full shadow-lg h-14 w-14 p-0"
+              onClick={() => setIsPdfModalOpen(true)}
+            >
+              <FileText className="h-5 w-5" />
+              <span className="sr-only">Upload PDF</span>
             </Button>
             <input
               ref={fileInputRef}
@@ -589,6 +602,20 @@ const ChatBotDemo = () => {
               ))}
             </tbody>
           </table>
+        </div>
+      </DialogDrawer>
+
+      <DialogDrawer
+        open={isPdfModalOpen}
+        onOpenChange={setIsPdfModalOpen}
+        trigger={null}
+        title="Extract Tables from PDF"
+        description="Upload a PDF to extract tables from it."
+        dialogClassName="max-w-3xl w-full"
+      >
+        <div className="p-4">
+          <UploadPdf onTablesExtracted={setExtractedTables} />
+          {extractedTables.length > 0 && <TablePreview tables={extractedTables} />}
         </div>
       </DialogDrawer>
     </div>
